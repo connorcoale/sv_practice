@@ -1,0 +1,1 @@
+- [Schematic](https://github.com/icebreaker-fpga/icebreaker-pmod/blob/master/7segment/v1.2a/7segment-sch.pdf) for [7Seg](https://1bitsquared.com/products/pmod-7-segment-display)
