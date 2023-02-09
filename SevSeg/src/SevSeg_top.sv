@@ -3,9 +3,9 @@
 // Company: 
 // Engineer: 
 // 
-// Create Date: 02/07/2023 11:54:20 AM
+// Create Date: 02/07/2023 11:48:31 AM
 // Design Name: 
-// Module Name: 7Seg_tb
+// Module Name: SevSeg_top
 // Project Name: 
 // Target Devices: 
 // Tool Versions: 
@@ -20,7 +20,7 @@
 //////////////////////////////////////////////////////////////////////////////////
 
 
-module 7Seg_tb(
+module SevSeg_top(
 
     );
 endmodule
