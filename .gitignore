@@ -1,0 +1,7 @@
+*.vcd
+*.bit
+*.jou
+*vivado*.log
+.Xil
+obj_dir
+clockInfo.txt
