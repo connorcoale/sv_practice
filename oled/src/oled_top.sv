@@ -29,71 +29,28 @@ module oled_top #(
                    output logic mosi,
                    output logic sclk
                  );
-
-
-
-   //  TODO: Move to package?
-
-   // Display on (need to wait 25ms before doing this)
    localparam logic [7:0]       DisplayOn = 8'hAF;
+   localparam Delay3v3          = 2_000_000;  // 20ms at 100MHz
+   localparam StartupDCDelay    = 1500;       // 15us  .
+   localparam StartupResetDelay = 1500;       // 15us  .
+   localparam ComSegDelay       = 10_000_000; // 100ms .
 
    // Need to debounce and monopulse the reset_display input.
-   logic                  reset_display, reset_display_db, reset_display_mp;
-   // 100_000 10ns clock periods fit in 1ms.
-   localparam integer     DebounceCount = 100_000;
-   logic [$clog2(DebounceCount)-1:0] db_counter, db_counter_next;
-   always @(posedge clk or posedge reset) begin
-      if (reset) begin
-         db_counter <= '0;
-         reset_display_db <= '0;
-      end
-      else begin
-         db_counter <= db_counter_next;
-         reset_display_db <= (db_counter >= DebounceCount);
-      end
-   end
-   always_comb begin
-      if (reset_display_raw) begin
-         if (db_counter >= DebounceCount) db_counter_next = db_counter;
-         else db_counter_next = db_counter + 1;
-      end
-      else db_counter_next = '0;
-   end
-
-   logic [1:0] mp_state, mp_state_next; // 00 = awaiting press, 01 = pulsing for 1 cycle, 10 = awaiting release.
-   always @(posedge clk or posedge reset) begin
-      if (reset) begin
-         reset_display_mp <= '0;
-         mp_state <= 2'b00;
-      end
-      else begin
-         reset_display_mp <= (mp_state == 2'b01);
-         mp_state <= mp_state_next;
-      end
-   end
-
-   always_comb begin
-      mp_state_next = mp_state;
-      case (mp_state)
-        2'b00: begin
-           // transition only if we see a debounce button PRESSED
-           if (reset_display_db) mp_state_next = 2'b01;
-        end
-        2'b01: begin
-           // immediately, after 1 cycle, transition out of pulse state.
-           mp_state_next = 2'b10;
-        end
-        2'b10: begin
-           // transition only if we see debounce button RELEASED
-           if (~reset_display_db) mp_state_next = 2'b00;
-        end
-        default: begin
-           mp_state_next = 2'b00;
-        end
-      endcase // case (mp_state)
-   end
-
-   assign reset_display = reset_display_mp;
+   logic              reset_display, reset_display_db;
+   localparam integer DebounceCount = 100_000; // 1ms at 10MHz
+   debouncer  #(.N(DebounceCount)) debouncer
+                         (
+                          .out       (reset_display_db),
+                          .clk       (clk),
+                          .reset     (reset),
+                          .in        (reset_display_raw)
+                         );
+   monopulser monopulser (
+                          .clk       (clk),
+                          .reset     (reset),
+                          .in        (reset_display_db),
+                          .out       (reset_display)
+                          );
 
    logic ready, done, start;
    logic [PACKET_WIDTH-1:0] d_in;
@@ -107,17 +64,17 @@ module oled_top #(
               spi_master
                         (/*AUTOINST*/
                          // Outputs
-                         .ready               (ready),
-                         .done                (done),
-                         .d_out               (),              // Templated
-                         .sclk                (sclk),
-                         .mosi                (mosi),
+                         .ready                 (ready),
+                         .done                  (done),
+                         .d_out                 (),              // Templated
+                         .sclk                  (sclk),
+                         .mosi                  (mosi),
                          // Inputs
-                         .clk                 (clk),
-                         .rstn                (~reset),        // Templated
-                         .start               (start),
-                         .d_in                (d_in[PACKET_WIDTH-1:0]),
-                         .miso                ());              // Templated
+                         .clk                   (clk),
+                         .rstn                  (~reset),        // Templated
+                         .start                 (start),
+                         .d_in                  (d_in[PACKET_WIDTH-1:0]),
+                         .miso                  ());              // Templated
 
    typedef enum {
                  IDLE,                // 0
@@ -130,13 +87,12 @@ module oled_top #(
                  SEND_DATA            // 7
                  } state_t;
 
-
    always_ff @(posedge clk or posedge reset) begin
       if (reset) begin
          state       <= IDLE;
-         startup_cnt <= 1'b0;
          d_in        <= 1'b0;
          start       <= 1'b0;
+         start_delay <= 1'b0;
          dc          <= 1'b0;
          power_reset <= 1'b0;
          vcc_en      <= 1'b0;
@@ -144,9 +100,9 @@ module oled_top #(
          cs          <= 1'b1;
       end else begin
          state       <= state_next;
-         startup_cnt <= startup_cnt_next;
          d_in        <= d_in_next;
          start       <= start_next;
+         start_delay <= start_delay_next;
          dc          <= dc_next;
          power_reset <= power_reset_next;
          vcc_en      <= vcc_en_next;
@@ -157,11 +113,7 @@ module oled_top #(
 
    state_t                  state, state_next;
    logic                    start_next;
-   logic [5:0]              startup_cnt, startup_cnt_next;
    logic                    dc_next, power_reset_next, vcc_en_next, pmod_en_next, cs_next;
-
-   logic                    startup_3v3_delay_done, startup_dc_delay_done,
-                              startup_reset_delay_done, com_seg_delay_done;
 
    logic                    send_command, send_data;
 
@@ -173,22 +125,19 @@ module oled_top #(
       // defaults
       state_next = state;
       d_in_next = d_in;
-      startup_cnt_next = startup_cnt;
       start_next = 1'b0;
-      startup_3v3_delay = 1'b0;
-      startup_dc_delay = 1'b0;
-      startup_reset_delay = 1'b0;
-      com_seg_delay = 1'b0;
+      start_delay_next = 1'b0;
       dc_next = 1'b0;
       power_reset_next = power_reset;
       vcc_en_next = vcc_en;
       pmod_en_next = pmod_en;
       cs_next = 1'b1;
+      n_delay = '0;
       case (state)
         IDLE: begin
            if (reset_display) begin
               state_next = STARTUP_3V3_DELAY;
-              startup_cnt_next = '0;
+              start_delay_next = 1'b1;
            end
            else if (send_command) state_next = SEND_COMMAND;
            else if (send_data) state_next = SEND_DATA;
@@ -199,10 +148,12 @@ module oled_top #(
            power_reset_next     = 1'b1;
            vcc_en_next          = 1'b0;
            pmod_en_next         = 1'b0;
-
            // delay 20ms
-           startup_3v3_delay = 1'b1;
-           if (startup_3v3_delay_done) state_next = STARTUP_DC_DELAY;
+           n_delay = Delay3v3;
+           if (delay_done) begin
+              state_next = STARTUP_DC_DELAY;
+              start_delay_next = 1'b1;
+           end
         end
         STARTUP_DC_DELAY: begin
            // power_reset goes low
@@ -210,10 +161,12 @@ module oled_top #(
            power_reset_next     = 1'b0;
            vcc_en_next          = 1'b0;
            pmod_en_next         = 1'b0;
-
-           // delay 3us
-           startup_dc_delay     = 1'b1;
-           if (startup_dc_delay_done) state_next = STARTUP_RESET_DELAY;
+           // delay 15us
+           n_delay = StartupDCDelay;
+           if (delay_done) begin
+              state_next = STARTUP_RESET_DELAY;
+              start_delay_next = 1'b1;
+           end
         end
         STARTUP_RESET_DELAY: begin
            // power_reset goes back high
@@ -222,10 +175,9 @@ module oled_top #(
            power_reset_next     = 1'b1;
            vcc_en_next          = 1'b1;
            pmod_en_next         = 1'b1;
-
-           // delay 3us
-           startup_reset_delay     = 1'b1;
-           if (startup_reset_delay_done) state_next = DISP_ON;
+           // delay 15us
+           n_delay = StartupResetDelay;
+           if (delay_done) state_next = DISP_ON;
         end
         DISP_ON: begin
            cs_next = 1'b0;
@@ -233,12 +185,15 @@ module oled_top #(
               d_in_next = DisplayOn; // Send display on command
               start_next = 1'b1;
            end
-           // transition once the spi transaction is done
-           if (done) state_next = COM_SEG_DELAY;
+           if (done) begin // transition once transaction sent
+              state_next = COM_SEG_DELAY;
+              start_delay_next = 1'b1;
+           end
         end
         COM_SEG_DELAY: begin
-           com_seg_delay = 1'b1;
-           if (com_seg_delay_done) state_next = IDLE;
+           // delay 100ms
+           n_delay = ComSegDelay;
+           if (delay_done) state_next = IDLE;
         end
         SEND_COMMAND: begin
            dc_next = 0;
@@ -252,76 +207,29 @@ module oled_top #(
       endcase // case (state)
    end
 
+   logic [32-1:0] n_delay; // use defualt width of 32 bits.
+   logic          start_delay, start_delay_next;
+   logic          delay_done;
 
-   // Delay counters. Modularize?
-   localparam Delay3v3 = 2_000_000; // 20ms
-   logic [$clog2(Delay3v3)-1:0] startup_3v3_delay_cnt;
-   logic startup_3v3_delay;
-   always_ff @(posedge clk or posedge reset) begin
-      if (reset) begin
-         startup_3v3_delay_cnt <= '0;
-         startup_3v3_delay_done <= '0;
-      end
-      else begin
-         if (startup_3v3_delay)  startup_3v3_delay_cnt <= (startup_3v3_delay_cnt == Delay3v3) ? '0
-                                  : startup_3v3_delay_cnt + startup_3v3_delay;
-         else startup_3v3_delay_cnt <= '0;
-         startup_3v3_delay_done <= (startup_3v3_delay_cnt == Delay3v3);
-      end
-   end
+   /* counter AUTO_TEMPLATE (
+    .done(delay_done),
+    .n(n_delay),
+    .enable(start_delay),
+    );
+    */
+   counter counter(/*AUTOINST*/
+                   // Outputs
+                   .done                (delay_done),            // Templated
+                   // Inputs
+                   .clk                 (clk),
+                   .reset               (reset),
+                   .enable              (start_delay),           // Templated
+                   .n                   (n_delay));               // Templated
 
-   localparam StartupDCDelay = 1500; // 15us
-   logic [$clog2(StartupDCDelay)-1:0] startup_dc_delay_cnt;
-   logic startup_dc_delay;
-   always_ff @(posedge clk or posedge reset) begin
-      if (reset) begin
-         startup_dc_delay_cnt <= '0;
-         startup_dc_delay_done <= '0;
-      end
-      else begin
-         if (startup_dc_delay) startup_dc_delay_cnt <= (startup_dc_delay_cnt == StartupDCDelay) ? '0
-                                 : startup_dc_delay_cnt + startup_dc_delay;
-         else startup_dc_delay_cnt <= '0;
-         startup_dc_delay_done <= (startup_dc_delay_cnt == StartupDCDelay);
-      end
-   end
 
-   localparam StartupResetDelay = 1500; // 15us
-   logic [$clog2(StartupResetDelay)-1:0] startup_reset_delay_cnt;
-   logic startup_reset_delay;
-   always_ff @(posedge clk or posedge reset) begin
-      if (reset) begin
-         startup_reset_delay_cnt <= '0;
-         startup_reset_delay_done <= '0;
-      end
-      else begin
-         if (startup_reset_delay) startup_reset_delay_cnt <= (startup_reset_delay_cnt == StartupResetDelay) ? '0
-                                    : startup_reset_delay_cnt + startup_reset_delay;
-         else startup_reset_delay_cnt <= '0;
-         startup_reset_delay_done <= (startup_reset_delay_cnt == StartupResetDelay);
-      end
-   end
-
-   localparam ComSegDelay = 10_000_000; // 100ms
-   logic [$clog2(ComSegDelay)-1:0] com_seg_delay_cnt;
-   logic com_seg_delay;
-   always_ff @(posedge clk or posedge reset) begin
-      if (reset) begin
-         com_seg_delay_cnt <= '0;
-         com_seg_delay_done <= '0;
-      end
-      else begin
-         if (com_seg_delay)
-           com_seg_delay_cnt <= (com_seg_delay_cnt == ComSegDelay) ? '0
-                              : com_seg_delay_cnt + com_seg_delay;
-         else
-           com_seg_delay_cnt <= '0;
-         com_seg_delay_done <= (com_seg_delay_cnt == ComSegDelay);
-      end
-   end
 
 endmodule // oled_top
 
 // Local Variables:
-// verilog-library-flags:("-y ../../spi/src")
+// verilog-library-flags:("-y ../../spi/src -y ../../utils/src")
 // End:
