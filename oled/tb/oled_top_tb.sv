@@ -14,7 +14,7 @@ module oled_top_tb () ;
    localparam CLK_HALF_CYCLE = 5;  // 5ns half cycle means 10ns period
    localparam PERIOD = CLK_HALF_CYCLE * 2; // 10ns
 
-   logic clk, reset, reset_display_raw;
+   logic clk, reset, reset_display_raw, btn2_raw;
 
    logic dc, power_reset, vcc_en, pmod_en, cs, mosi, sclk;
    logic [7:0] led;
@@ -32,7 +32,8 @@ module oled_top_tb () ;
                       // Inputs
                       .clk              (clk),
                       .reset            (reset),
-                      .reset_display_raw(reset_display_raw));
+                      .reset_display_raw(reset_display_raw),
+                      .btn2_raw         (btn2_raw));
 
    always #CLK_HALF_CYCLE clk = ~clk;
 
@@ -47,9 +48,13 @@ module oled_top_tb () ;
       #(2*PERIOD);
       reset = 1'b0;
       reset_display_raw = 1'b1;
-      #(100_001*PERIOD);
+      #(20_000*PERIOD);
       reset_display_raw = 1'b0;
-      #121ms;
+      #1ms;
+      btn2_raw = 1'b1;
+      #30us;
+      btn2_raw = 1'b0;
+      #30us;
       $finish;
    end
 
