@@ -1,4 +1,4 @@
-read_verilog -sv ../src/oled_top.sv ../../spi/src/spi_master.sv ../../utils/src/counter.sv ../../utils/src/debouncer.sv ../../utils/src/monopulser.sv
+read_verilog -sv ../src/oled_top.sv ../src/oled.sv ../../spi/src/spi_master.sv ../../utils/src/counter.sv ../../utils/src/debouncer.sv ../../utils/src/monopulser.sv
 
 read_xdc ../xdc/Arty-A7-35.xdc
 
