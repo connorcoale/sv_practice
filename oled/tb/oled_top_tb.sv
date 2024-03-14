@@ -49,13 +49,20 @@ module oled_top_tb () ;
 
       // reset display
       btn[1] = 1'b1;
-      #((2000+1500+1500+10000+100)*PERIOD);
+      #((2000+1500+1500+10000+1000)*PERIOD);
       btn[1] = 1'b0;
 
       // test_pattern
       btn[2] = 1'b1;
-      #(110*PERIOD);
+      #(10000*PERIOD);
       btn[2] = 1'b0;
+
+      #(100*PERIOD);
+
+      // test_image
+      btn[3] = 1'b1;
+      #(7000*PERIOD);
+      btn[3] = 1'b0;
 
       #30us;
       $finish;

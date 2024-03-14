@@ -14,6 +14,7 @@ module oled (
              input logic  reset,
              input logic  reset_oled,
              input logic  test_pattern,
+             input logic  test_image,
 
              // Outputs to pmod
              // PMOD location:
@@ -68,8 +69,9 @@ module oled (
        SET_256_MODE1,       // 6
        SET_256_MODE2,       // 7
        SEND_COLORS,         // 8
-       SEND_COMMAND,        // 9
-       SEND_DATA            // 10
+       TEST_IMAGE,          // 9
+       SEND_COMMAND,        // 10
+       SEND_DATA            // 11
        } state_t;
 
    always_ff @(posedge clk or posedge reset) begin
@@ -105,9 +107,8 @@ module oled (
    logic                    send_command, send_data;
 
    logic [7:0] d_in_next;
-   logic [7:0]              count, count_next;
+   logic [12:0]              count, count_next;
 
-   assign led = {4'b0000, state[3:0]};
 
    always_comb begin
       // defaults
@@ -121,7 +122,7 @@ module oled (
       pmoden_next = pmoden;
       cs_next = 1'b1;
       n_delay = '0;
-      count_next = count;
+      count_next = '0;
       case (state)
         IDLE: begin
            if (reset_oled) begin
@@ -131,11 +132,12 @@ module oled (
            else if (send_command) state_next = SEND_COMMAND;
            else if (send_data) state_next = SEND_DATA;
            else if (test_pattern) state_next = SEND_COLORS;
+           else if (test_image) state_next = TEST_IMAGE;
         end
         STARTUP_3V3_DELAY: begin
            // Start with reset high (active low reset)
-           dc_next              = 1'b0;
-           res_next     = 1'b1;
+           dc_next             = 1'b0;
+           res_next            = 1'b1;
            vccen_next          = 1'b0;
            pmoden_next         = 1'b0;
            // delay 20ms
@@ -200,7 +202,7 @@ module oled (
               start_next = 1'b1;
            end
            if (done) state_next = IDLE;
-        end
+           end
         SEND_COLORS: begin
            cs_next = 1'b0;
            dc_next = 1'b1;
@@ -209,7 +211,17 @@ module oled (
               d_in_next = count; // send an incrementing counter as data
               start_next = 1'b1;
            end
-          if (done) state_next = test_pattern ? SEND_COLORS : IDLE;
+           if (done) state_next = test_pattern ? SEND_COLORS : IDLE;
+        end
+        TEST_IMAGE: begin
+           cs_next = 1'b0;
+           dc_next = 1'b1;
+           count_next = count + done;
+           if (ready) begin
+              d_in_next = image[count % (96*64)]; // send an incrementing counter as data
+              start_next = 1'b1;
+           end
+           if (done) state_next = test_image ? TEST_IMAGE : IDLE;
         end
         SEND_COMMAND: begin
            dc_next = 0;
@@ -230,6 +242,15 @@ module oled (
                    .reset               (reset),
                    .enable              (start_delay),
                    .n                   (n_delay));
+
+   logic [7:0]    image [96*64];
+   logic [8*96*64:0] image_flat;
+   initial begin
+      $readmemh("test_image.hex", image); 
+      // for (int i = 0; i < 96*64; i++) begin
+         // image[i] = image_flat[(8*i-1)-:8];
+      // end
+   end
 
 endmodule // oled
 
