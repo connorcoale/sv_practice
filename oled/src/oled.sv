@@ -69,9 +69,10 @@ module oled (
        SET_256_MODE1,       // 6
        SET_256_MODE2,       // 7
        SEND_COLORS,         // 8
-       TEST_IMAGE,          // 9
-       SEND_COMMAND,        // 10
-       SEND_DATA            // 11
+       TEST_IMAGE_COMMANDS, // 9
+       TEST_IMAGE,          // 10
+       SEND_COMMAND,        // 11
+       SEND_DATA            // 12
        } state_t;
 
    always_ff @(posedge clk or posedge reset) begin
@@ -107,7 +108,7 @@ module oled (
    logic                    send_command, send_data;
 
    logic [7:0] d_in_next;
-   logic [12:0]              count, count_next;
+   logic [13:0]              count, count_next;
 
 
    always_comb begin
@@ -132,7 +133,7 @@ module oled (
            else if (send_command) state_next = SEND_COMMAND;
            else if (send_data) state_next = SEND_DATA;
            else if (test_pattern) state_next = SEND_COLORS;
-           else if (test_image) state_next = TEST_IMAGE;
+           else if (test_image) state_next = TEST_IMAGE_COMMANDS;
         end
         STARTUP_3V3_DELAY: begin
            // Start with reset high (active low reset)
@@ -198,7 +199,7 @@ module oled (
         SET_256_MODE2: begin
            cs_next = 1'b0;
            if (ready) begin
-              d_in_next = 8'h00; // Set to 256 color format (bits 7 and 6 must be 0)
+              d_in_next = 8'h20; // Set to 256 color format (bits 7 and 6 must be 0)
               start_next = 1'b1;
            end
            if (done) state_next = IDLE;
@@ -213,15 +214,28 @@ module oled (
            end
            if (done) state_next = test_pattern ? SEND_COLORS : IDLE;
         end
+        TEST_IMAGE_COMMANDS: begin
+           cs_next = 1'b0;
+           dc_next = 1'b0;
+           count_next = count + done;
+           if (ready) begin
+              d_in_next = pre_frame_commands[count];
+              start_next = 1'b1;
+           end
+           if (done && (count == 10-1)) begin
+              state_next = TEST_IMAGE;
+              count_next = '0;
+           end
+        end
         TEST_IMAGE: begin
            cs_next = 1'b0;
            dc_next = 1'b1;
            count_next = count + done;
            if (ready) begin
-              d_in_next = image[count % (96*64)]; // send an incrementing counter as data
+              d_in_next = image[count]; // send an incrementing counter as data
               start_next = 1'b1;
            end
-           if (done) state_next = test_image ? TEST_IMAGE : IDLE;
+           if (done && (count == (96*64-1))) state_next = IDLE;
         end
         SEND_COMMAND: begin
            dc_next = 0;
@@ -233,6 +247,8 @@ module oled (
       endcase // case (state)
    end
 
+   logic [7:0] pre_frame_commands [10];
+   assign pre_frame_commands = {8'hA1, 8'h00, 8'hA2, 8'h00, 8'h15, 8'd0, 8'd95, 8'h75, 8'd0, 8'd63 };
    logic [32-1:0] n_delay; // use defualt width of 32 bits.
    logic          start_delay, start_delay_next, delay_done;
 
@@ -244,12 +260,8 @@ module oled (
                    .n                   (n_delay));
 
    logic [7:0]    image [96*64];
-   logic [8*96*64:0] image_flat;
    initial begin
-      $readmemh("test_image.hex", image); 
-      // for (int i = 0; i < 96*64; i++) begin
-         // image[i] = image_flat[(8*i-1)-:8];
-      // end
+      $readmemh("test_image.hex", image);
    end
 
 endmodule // oled

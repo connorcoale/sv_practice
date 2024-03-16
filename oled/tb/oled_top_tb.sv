@@ -61,10 +61,10 @@ module oled_top_tb () ;
 
       // test_image
       btn[3] = 1'b1;
-      #(7000*PERIOD);
+      #(110*PERIOD);
       btn[3] = 1'b0;
 
-      #30us;
+      #(1800 * (96*64));
       $finish;
    end
 

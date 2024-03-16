@@ -59,7 +59,7 @@ module oled_top #(
               .reset(btn_db[0]),
               .reset_oled(btn_mp[1]),
               .test_pattern(btn_db[2]),
-              .test_image(btn_db[3]),
+              .test_image(btn_mp[3]),
               .cs(cs),
               .sdin(sdin),
               .sclk(sclk),
