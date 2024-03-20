@@ -9,6 +9,9 @@
 // Status          : Unknown, Use with caution!
 
 module oled_top #(
+`ifdef VERILATOR
+                  parameter string TB_IMAGE_ADDR = "test_image.hex",
+`endif
                   parameter integer PACKET_WIDTH = 8
                   )
                   (
@@ -54,7 +57,9 @@ module oled_top #(
    endgenerate
 
 
-   oled oled (
+   oled `ifdef VERILATOR #(.TEST_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif
+        oled
+              (
               .clk(clk),
               .reset(btn_db[0]),
               .reset_oled(btn_mp[1]),

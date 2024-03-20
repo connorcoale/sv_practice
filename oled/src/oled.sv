@@ -9,6 +9,8 @@
 // Status          : Unknown, Use with caution!
 
 module oled #(
+              // Probably want to override this generic at the compilation stage for synthesis
+              // and/or simulation.
               parameter string TEST_IMAGE_ADDR = "test_image.hex"
               )
              (
@@ -252,7 +254,7 @@ module oled #(
 
    logic [7:0] pre_frame_commands [10];
    assign pre_frame_commands = {8'hA1, 8'h00, 8'hA2, 8'h00, 8'h15, 8'd0, 8'd95, 8'h75, 8'd0, 8'd63 };
-   logic [32-1:0] n_delay; // use defualt width of 32 bits.
+   logic [32-1:0] n_delay; // use default width of 32 bits.
    logic          start_delay, start_delay_next, delay_done;
 
    counter counter(
@@ -263,11 +265,7 @@ module oled #(
                    .n                   (n_delay));
 
    logic [7:0]    image [96*64];
-   initial begin
-      $readmemh(TEST_IMAGE_ADDR, image);
-      $display("TEST IMAGE ADDR: ");
-      $display(TEST_IMAGE_ADDR);
-   end
+   initial $readmemh(TEST_IMAGE_ADDR, image);
 
 endmodule // oled
 

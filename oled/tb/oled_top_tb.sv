@@ -10,7 +10,7 @@
 
 `timescale 1ns/100ps
 
-module oled_top_tb () ;
+module oled_top_tb #(TB_IMAGE_ADDR = "test_image.hex") () ;
    localparam CLK_HALF_CYCLE = 5;  // 5ns half cycle means 10ns period
    localparam PERIOD = CLK_HALF_CYCLE * 2; // 10ns
 
@@ -20,7 +20,8 @@ module oled_top_tb () ;
 
    logic clk;
    logic [3:0] btn;
-   oled_top oled_top (/*AUTOINST*/
+   oled_top `ifdef VERILATOR #(.TB_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif
+     oled_top (
                       // Outputs
                       .cs               (cs),
                       .sdin             (sdin),
