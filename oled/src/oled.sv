@@ -8,7 +8,10 @@
 // Update Count    : 0
 // Status          : Unknown, Use with caution!
 
-module oled (
+module oled #(
+              parameter string TEST_IMAGE_ADDR = "test_image.hex"
+              )
+             (
              // Inputs to control abstracted pmod
              input logic  clk,
              input logic  reset,
@@ -18,12 +21,12 @@ module oled (
 
              // Outputs to pmod
              // PMOD location:
-             output logic cs, // 1
-             output logic sdin, // 2
-             output logic sclk, // 4
-             output logic dc, // 7
-             output logic res, // 8
-             output logic vccen, // 9
+             output logic cs, //     1
+             output logic sdin, //   2
+             output logic sclk, //   4
+             output logic dc, //     7
+             output logic res, //    8
+             output logic vccen, //  9
              output logic pmoden // 10
              );
 
@@ -261,7 +264,9 @@ module oled (
 
    logic [7:0]    image [96*64];
    initial begin
-      $readmemh("test_image.hex", image);
+      $readmemh(TEST_IMAGE_ADDR, image);
+      $display("TEST IMAGE ADDR: ");
+      $display(TEST_IMAGE_ADDR);
    end
 
 endmodule // oled
