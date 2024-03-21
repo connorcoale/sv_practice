@@ -15,7 +15,7 @@ Utils include:
 TODO:
 - rename counter -> delay and refactor
 ## [oled](oled)
-Simple test implementation of pmodOLEDRGB from Digilent. [https://digilent.com/shop/pmod-oledrgb-96-x-64-rgb-oled-display-with-16-bit-color-resolution/](link to product).
+Simple test implementation of pmodOLEDRGB from Digilent. [Link to product page](https://digilent.com/shop/pmod-oledrgb-96-x-64-rgb-oled-display-with-16-bit-color-resolution/).
 TODO:
 - Make test image an option for synthesis at compile time.
 - Implement a RAM to store rewritable data
