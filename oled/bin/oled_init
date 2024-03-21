@@ -1,2 +1,3 @@
 #!/bin/bash
+
 export OLED_ROOT=~/Documents/Projects/sv_practice/oled

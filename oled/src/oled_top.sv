@@ -57,6 +57,7 @@ module oled_top #(
    endgenerate
 
 
+
    oled `ifdef VERILATOR #(.TEST_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif
         oled
               (
