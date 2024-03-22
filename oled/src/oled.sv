@@ -257,7 +257,7 @@ module oled #(
    logic [32-1:0] n_delay; // use default width of 32 bits.
    logic          start_delay, start_delay_next, delay_done;
 
-   counter counter(
+   delay_counter delay_counter(
                    .done                (delay_done),
                    .clk                 (clk),
                    .reset               (reset),

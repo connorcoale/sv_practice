@@ -4,7 +4,7 @@ SYN_TOOL = $(TOOL)
 FLASH_TOOL = $(TOOL)
 
 SOURCES = ${OLED_ROOT}/src/oled_top.sv ${OLED_ROOT}/src/oled.sv
-DEPS = ${OLED_ROOT}/../utils/src/counter.sv ${OLED_ROOT}/../utils/src/debouncer.sv ${OLED_ROOT}/../utils/src/monopulser.sv ${OLED_ROOT}/../spi/src/spi_master.sv
+DEPS = ${OLED_ROOT}/../utils/src/delay_counter.sv ${OLED_ROOT}/../utils/src/debouncer.sv ${OLED_ROOT}/../utils/src/monopulser.sv ${OLED_ROOT}/../spi/src/spi_master.sv
 
 SIM_RESDIR = ${OLED_ROOT}/out/verilated
 SIM_TOP = oled_top_tb

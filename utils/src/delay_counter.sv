@@ -9,7 +9,7 @@
 // Update Count    : 0
 // Status          : Unknown, Use with caution!
 
-module counter #(parameter integer WIDTH = 32)
+module delay_counter #(parameter integer WIDTH = 32)
    (
     input logic             clk,
     input logic             reset,
@@ -70,5 +70,5 @@ module counter #(parameter integer WIDTH = 32)
         end
       endcase // case (state)
    end
-endmodule // counter
+endmodule // delay_counter
 
