@@ -46,20 +46,20 @@ module oled
    localparam integer ComSegDelay       = 10_000_000; // 100ms .
 `endif
 
-   logic ready, done, start;
+   logic spi_ready, spi_tx_done, spi_start;
    logic [7:0] d_in;
    spi_master #(.CPOL(1), .CPHA(1)) spi_master 
      (
       // Outputs
-      .ready                        (ready),
-      .done                         (done),
+      .ready                        (spi_ready),
+      .done                         (spi_tx_done),
       .d_out                        (),  // no miso
       .sclk                         (sclk),
       .mosi                         (sdin),
       // Inputs
       .clk                          (clk),
       .rstn                         (~reset),
-      .start                        (start),
+      .start                        (spi_start),
       .d_in                         (d_in[7:0]),
       .miso                         () // no miso
    );
@@ -84,30 +84,30 @@ module oled
       if (reset) begin
          state       <= IDLE;
          d_in        <= 1'b0;
-         start       <= 1'b0;
+         spi_start   <= 1'b0;
          start_delay <= 1'b0;
          dc          <= 1'b0;
-         res <= 1'b0;
-         vccen      <= 1'b0;
-         pmoden     <= 1'b0;
+         res         <= 1'b0;
+         vccen       <= 1'b0;
+         pmoden      <= 1'b0;
          cs          <= 1'b1;
          count       <= 0;
       end else begin
          state       <= state_next;
          d_in        <= d_in_next;
-         start       <= start_next;
+         spi_start   <= spi_start_next;
          start_delay <= start_delay_next;
          dc          <= dc_next;
-         res <= res_next;
-         vccen      <= vccen_next;
-         pmoden     <= pmoden_next;
+         res         <= res_next;
+         vccen       <= vccen_next;
+         pmoden      <= pmoden_next;
          cs          <= cs_next;
          count       <= count_next;
       end
    end
 
    state_t                  state, state_next;
-   logic                    start_next;
+   logic                    spi_start_next;
    logic                    dc_next, res_next, vccen_next, pmoden_next, cs_next;
 
    logic                    send_command, send_data;
@@ -120,7 +120,7 @@ module oled
       // defaults
       state_next = state;
       d_in_next = d_in;
-      start_next = 1'b0;
+      spi_start_next = 1'b0;
       start_delay_next = 1'b0;
       dc_next = 1'b0;
       res_next = res;
@@ -179,11 +179,11 @@ module oled
         end
         DISP_ON: begin
            cs_next = 1'b0;
-           if (ready) begin
+           if (spi_ready) begin
               d_in_next = DisplayOn; // Send display on command
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done) begin // transition once transaction sent
+           if (spi_tx_done) begin // transition once transaction sent
               state_next = COM_SEG_DELAY;
               start_delay_next = 1'b1;
            end
@@ -195,39 +195,39 @@ module oled
         end
         SET_256_MODE1: begin
            cs_next = 1'b0;
-           if (ready) begin
+           if (spi_ready) begin
               d_in_next = 8'hA0; // Send driver remap/color depth command
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done)state_next = SET_256_MODE2;
+           if (spi_tx_done) state_next = SET_256_MODE2;
         end
         SET_256_MODE2: begin
            cs_next = 1'b0;
-           if (ready) begin
+           if (spi_ready) begin
               d_in_next = 8'h20; // Set to 256 color format (bits 7 and 6 must be 0)
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done) state_next = IDLE;
+           if (spi_tx_done) state_next = IDLE;
            end
         SEND_COLORS: begin
            cs_next = 1'b0;
            dc_next = 1'b1;
-           count_next = count + done;
-           if (ready) begin
+           count_next = count + spi_tx_done;
+           if (spi_ready) begin
               d_in_next = count; // send an incrementing counter as data
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done) state_next = test_pattern ? SEND_COLORS : IDLE;
+           if (spi_tx_done) state_next = test_pattern ? SEND_COLORS : IDLE;
         end
         TEST_IMAGE_COMMANDS: begin
            cs_next = 1'b0;
            dc_next = 1'b0;
-           count_next = count + done;
-           if (ready) begin
+           count_next = count + spi_tx_done;
+           if (spi_ready) begin
               d_in_next = pre_frame_commands[count];
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done && (count == 10-1)) begin
+           if (spi_tx_done && (count == 10-1)) begin
               state_next = TEST_IMAGE;
               count_next = '0;
            end
@@ -235,12 +235,12 @@ module oled
         TEST_IMAGE: begin
            cs_next = 1'b0;
            dc_next = 1'b1;
-           count_next = count + done;
-           if (ready) begin
+           count_next = count + spi_tx_done;
+           if (spi_ready) begin
               d_in_next = image[count]; // send an incrementing counter as data
-              start_next = 1'b1;
+              spi_start_next = 1'b1;
            end
-           if (done && (count == (96*64-1))) state_next = IDLE;
+           if (spi_tx_done && (count == (96*64-1))) state_next = IDLE;
         end
         SEND_COMMAND: begin
            dc_next = 0;
