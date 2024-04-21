@@ -8,29 +8,30 @@
 // Update Count    : 0
 // Status          : Unknown, Use with caution!
 
-module oled #(
-              // Probably want to override this generic at the compilation stage for synthesis
-              // and/or simulation.
-              parameter string TEST_IMAGE_ADDR = "test_image.hex"
-              )
-             (
-             // Inputs to control abstracted pmod
-             input logic  clk,
-             input logic  reset,
-             input logic  reset_oled,
-             input logic  test_pattern,
-             input logic  test_image,
+module oled
+  #(
+    // Probably want to override this generic at the compilation stage for synthesis
+    // and/or simulation.
+    parameter string TEST_IMAGE_ADDR = "test_image.hex"
+    )
+   (
+    // Inputs to control abstracted pmod
+    input logic  clk,
+    input logic  reset,
+    input logic  reset_oled,
+    input logic  test_pattern,
+    input logic  test_image,
 
-             // Outputs to pmod
-             // PMOD location:
-             output logic cs, //     1
-             output logic sdin, //   2
-             output logic sclk, //   4
-             output logic dc, //     7
-             output logic res, //    8
-             output logic vccen, //  9
-             output logic pmoden // 10
-             );
+    // Outputs to pmod
+    // PMOD location:
+    output logic cs, //     1
+    output logic sdin, //   2
+    output logic sclk, //   4
+    output logic dc, //     7
+    output logic res, //    8
+    output logic vccen, //  9
+    output logic pmoden // 10
+    );
 
    localparam logic [7:0] DisplayOn = 8'hAF;
 `ifdef VERILATOR
@@ -47,38 +48,37 @@ module oled #(
 
    logic ready, done, start;
    logic [7:0] d_in;
-   spi_master    #(.CPOL(1), .CPHA(1))
-      spi_master
-         (
-          // Outputs
-          .ready                        (ready),
-          .done                         (done),
-          .d_out                        (),  // no miso
-          .sclk                         (sclk),
-          .mosi                         (sdin),
-          // Inputs
-          .clk                          (clk),
-          .rstn                         (~reset),
-          .start                        (start),
-          .d_in                         (d_in[7:0]),
-          .miso                         ()); // no miso
+   spi_master #(.CPOL(1), .CPHA(1)) spi_master 
+     (
+      // Outputs
+      .ready                        (ready),
+      .done                         (done),
+      .d_out                        (),  // no miso
+      .sclk                         (sclk),
+      .mosi                         (sdin),
+      // Inputs
+      .clk                          (clk),
+      .rstn                         (~reset),
+      .start                        (start),
+      .d_in                         (d_in[7:0]),
+      .miso                         () // no miso
+   );
 
-   typedef enum
-      {
-       IDLE,                // 0
-       STARTUP_3V3_DELAY,   // 1 20ms delay for 3.3V rail stabilization
-       STARTUP_DC_DELAY,    // 2 15us to bring reset low
-       STARTUP_RESET_DELAY, // 3 15us settle time for after reset goes back high
-       DISP_ON,             // 4 issue command to turn display on
-       COM_SEG_DELAY,       // 5 100ms to let com/seg come up
-       SET_256_MODE1,       // 6
-       SET_256_MODE2,       // 7
-       SEND_COLORS,         // 8
-       TEST_IMAGE_COMMANDS, // 9
-       TEST_IMAGE,          // 10
-       SEND_COMMAND,        // 11
-       SEND_DATA            // 12
-       } state_t;
+   typedef enum {
+      IDLE,                // 0
+      STARTUP_3V3_DELAY,   // 1 20ms delay for 3.3V rail stabilization
+      STARTUP_DC_DELAY,    // 2 15us to bring reset low
+      STARTUP_RESET_DELAY, // 3 15us settle time for after reset goes back high
+      DISP_ON,             // 4 issue command to turn display on
+      COM_SEG_DELAY,       // 5 100ms to let com/seg come up
+      SET_256_MODE1,       // 6
+      SET_256_MODE2,       // 7
+      SEND_COLORS,         // 8
+      TEST_IMAGE_COMMANDS, // 9
+      TEST_IMAGE,          // 10
+      SEND_COMMAND,        // 11
+      SEND_DATA            // 12
+      } state_t;
 
    always_ff @(posedge clk or posedge reset) begin
       if (reset) begin
@@ -257,12 +257,14 @@ module oled #(
    logic [32-1:0] n_delay; // use default width of 32 bits.
    logic          start_delay, start_delay_next, delay_done;
 
-   delay_counter delay_counter(
-                   .done                (delay_done),
-                   .clk                 (clk),
-                   .reset               (reset),
-                   .enable              (start_delay),
-                   .n                   (n_delay));
+   delay_counter delay_counter
+     (
+      .done                (delay_done),
+      .clk                 (clk),
+      .reset               (reset),
+      .enable              (start_delay),
+      .n                   (n_delay)
+      );
 
    logic [7:0]    image [96*64];
    initial $readmemh(TEST_IMAGE_ADDR, image);

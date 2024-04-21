@@ -20,19 +20,20 @@ module oled_top_tb #(TB_IMAGE_ADDR = "test_image.hex") () ;
 
    logic clk;
    logic [3:0] btn;
-   oled_top `ifdef VERILATOR #(.TB_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif
-     oled_top (
-                      // Outputs
-                      .cs               (cs),
-                      .sdin             (sdin),
-                      .sclk             (sclk),
-                      .dc               (dc),
-                      .res              (res),
-                      .vccen            (vccen),
-                      .pmoden           (pmoden),
-                      // Inputs
-                      .clk              (clk),
-                      .btn              (btn[3:0]));
+   oled_top `ifdef VERILATOR #(.TB_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif oled_top
+     (
+      // Outputs
+      .cs               (cs),
+      .sdin             (sdin),
+      .sclk             (sclk),
+      .dc               (dc),
+      .res              (res),
+      .vccen            (vccen),
+      .pmoden           (pmoden),
+      // Inputs
+      .clk              (clk),
+      .btn              (btn[3:0])
+      );
 
    always #CLK_HALF_CYCLE clk = ~clk;
 

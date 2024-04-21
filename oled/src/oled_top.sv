@@ -8,24 +8,24 @@
 // Update Count    : 0
 // Status          : Unknown, Use with caution!
 
-module oled_top #(
+module oled_top
+  #(
 `ifdef VERILATOR
-                  parameter string TB_IMAGE_ADDR = "test_image.hex",
+    parameter string TB_IMAGE_ADDR = "test_image.hex",
 `endif
-                  parameter integer PACKET_WIDTH = 8
-                  )
-                  (
-                   input logic       clk,
-                   input logic [3:0] btn,
-
-                   output logic      cs, // 1
-                   output logic      sdin, // 2
-                   output logic      sclk, // 4
-                   output logic      dc, // 7
-                   output logic      res, // 8
-                   output logic      vccen, // 9
-                   output logic      pmoden // 10
-                   );
+    parameter integer PACKET_WIDTH = 8
+    )
+   (
+    input logic       clk,
+    input logic [3:0] btn,
+    output logic      cs, // 1
+    output logic      sdin, // 2
+    output logic      sclk, // 4
+    output logic      dc, // 7
+    output logic      res, // 8
+    output logic      vccen, // 9
+    output logic      pmoden // 10
+    );
 
 `ifdef VERILATOR
    localparam integer                DebounceCount = 100;
@@ -39,7 +39,11 @@ module oled_top #(
    genvar                       i;
    generate
       for (i = 0; i < 4; i++) begin : g_button_conditioners
-         debouncer #(.N(DebounceCount)) debouncer
+         debouncer
+            #(
+              .N(DebounceCount)
+              )
+         debouncer
             (
              .out(btn_db[i]),
              .clk(clk),
@@ -47,33 +51,31 @@ module oled_top #(
              .in(btn[i])
              );
          monopulser monopulser
-            (
-             .out(btn_mp[i]),
-             .clk(clk),
-             .reset(),
-             .in(btn_db[i])
-             );
+           (
+            .out(btn_mp[i]),
+            .clk(clk),
+            .reset(),
+            .in(btn_db[i])
+            );
       end
    endgenerate
 
 
 
-   oled `ifdef VERILATOR #(.TEST_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif
-        oled
-              (
-              .clk(clk),
-              .reset(btn_db[0]),
-              .reset_oled(btn_mp[1]),
-              .test_pattern(btn_db[2]),
-              .test_image(btn_mp[3]),
-              .cs(cs),
-              .sdin(sdin),
-              .sclk(sclk),
-              .dc(dc),
-              .res(res),
-              .vccen(vccen),
-              .pmoden(pmoden)
-              );
+   oled `ifdef VERILATOR #(.TEST_IMAGE_ADDR(TB_IMAGE_ADDR)) `endif oled (
+      .clk(clk),
+      .reset(btn_db[0]),
+      .reset_oled(btn_mp[1]),
+      .test_pattern(btn_db[2]),
+      .test_image(btn_mp[3]),
+      .cs(cs),
+      .sdin(sdin),
+      .sclk(sclk),
+      .dc(dc),
+      .res(res),
+      .vccen(vccen),
+      .pmoden(pmoden)
+   );
 endmodule // oled_top
 
 // Local Variables:
