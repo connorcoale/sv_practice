@@ -64,20 +64,21 @@ module oled
       .miso                         () // no miso
    );
 
-   typedef enum {
+   typedef enum
+     {
       IDLE,                // 0
       STARTUP_3V3_DELAY,   // 1 20ms delay for 3.3V rail stabilization
       STARTUP_DC_DELAY,    // 2 15us to bring reset low
       STARTUP_RESET_DELAY, // 3 15us settle time for after reset goes back high
       DISP_ON,             // 4 issue command to turn display on
       COM_SEG_DELAY,       // 5 100ms to let com/seg come up
-      SET_256_MODE1,       // 6
-      SET_256_MODE2,       // 7
-      SEND_COLORS,         // 8
-      TEST_IMAGE_COMMANDS, // 9
-      TEST_IMAGE,          // 10
-      SEND_COMMAND,        // 11
-      SEND_DATA            // 12
+      SET_FOSC_FREQ1,      // 6
+      SET_FOSC_FREQ2,      // 7
+      SET_256_MODE1,       // 8
+      SET_256_MODE2,       // 9
+      SEND_COLORS,         // 10
+      TEST_IMAGE_COMMANDS, // 11
+      TEST_IMAGE           // 12
       } state_t;
 
    always_ff @(posedge clk or posedge reset) begin
@@ -85,8 +86,8 @@ module oled
          state       <= IDLE;
          d_in        <= 1'b0;
          spi_start   <= 1'b0;
-         start_delay <= 1'b0;
          dc          <= 1'b0;
+         start_delay <= 1'b0;
          res         <= 1'b0;
          vccen       <= 1'b0;
          pmoden      <= 1'b0;
@@ -96,8 +97,8 @@ module oled
          state       <= state_next;
          d_in        <= d_in_next;
          spi_start   <= spi_start_next;
-         start_delay <= start_delay_next;
          dc          <= dc_next;
+         start_delay <= start_delay_next;
          res         <= res_next;
          vccen       <= vccen_next;
          pmoden      <= pmoden_next;
@@ -110,23 +111,44 @@ module oled
    logic                    spi_start_next;
    logic                    dc_next, res_next, vccen_next, pmoden_next, cs_next;
 
-   logic                    send_command, send_data;
 
    logic [7:0] d_in_next;
    logic [13:0]              count, count_next;
 
+   task send_byte(input logic [7:0] data, state_t next);
+      cs_next = 1'b0;
+      if (spi_ready) begin
+         d_in_next = data;
+         spi_start_next = 1'b1;
+      end
+      if (spi_tx_done) state_next = next;
+   endtask // send_byte
+
+   task send_command(input logic [7:0] data, state_t next);
+      dc_next = 1'b0;
+      send_byte(data, next);
+   endtask // send_command
+
+   task send_data(input logic [7:0] data, state_t next);
+      dc_next = 1'b1;
+      send_byte(data, next);
+   endtask // send_data
 
    always_comb begin
       // defaults
+      /* verilator lint_off MULTIDRIVEN */
       state_next = state;
       d_in_next = d_in;
       spi_start_next = 1'b0;
-      start_delay_next = 1'b0;
       dc_next = 1'b0;
+      /* verilator lint_on MULTIDRIVEN */
+      start_delay_next = 1'b0;
       res_next = res;
       vccen_next = vccen;
       pmoden_next = pmoden;
+      /* verilator lint_off MULTIDRIVEN */
       cs_next = 1'b1;
+      /* verilator lint_on MULTIDRIVEN */
       n_delay = '0;
       count_next = '0;
       case (state)
@@ -135,11 +157,10 @@ module oled
               state_next = STARTUP_3V3_DELAY;
               start_delay_next = 1'b1;
            end
-           else if (send_command) state_next = SEND_COMMAND;
-           else if (send_data) state_next = SEND_DATA;
            else if (test_pattern) state_next = SEND_COLORS;
-           else if (test_image) state_next = TEST_IMAGE_COMMANDS;
+           else if (test_image)   state_next = TEST_IMAGE_COMMANDS;
         end
+
         STARTUP_3V3_DELAY: begin
            // Start with reset high (active low reset)
            dc_next             = 1'b0;
@@ -153,100 +174,76 @@ module oled
               start_delay_next = 1'b1;
            end
         end
+
         STARTUP_DC_DELAY: begin
            // res goes low
-           dc_next              = 1'b0;
-           res_next     = 1'b0;
-           vccen_next          = 1'b0;
-           pmoden_next         = 1'b0;
+           dc_next     = 1'b0;
+           res_next    = 1'b0;
+           vccen_next  = 1'b0;
+           pmoden_next = 1'b0;
            // delay 15us
            n_delay = StartupDCDelay;
            if (delay_done) begin
-              state_next = STARTUP_RESET_DELAY;
+              state_next       = STARTUP_RESET_DELAY;
               start_delay_next = 1'b1;
            end
         end
+
         STARTUP_RESET_DELAY: begin
            // res goes back high
            // along with vccen and pmoden
-           dc_next              = 1'b0;
-           res_next     = 1'b1;
-           vccen_next          = 1'b1;
-           pmoden_next         = 1'b1;
+           dc_next     = 1'b0;
+           res_next    = 1'b1;
+           vccen_next  = 1'b1;
+           pmoden_next = 1'b1;
            // delay 15us
            n_delay = StartupResetDelay;
            if (delay_done) state_next = DISP_ON;
         end
+
         DISP_ON: begin
-           cs_next = 1'b0;
-           if (spi_ready) begin
-              d_in_next = DisplayOn; // Send display on command
-              spi_start_next = 1'b1;
-           end
-           if (spi_tx_done) begin // transition once transaction sent
-              state_next = COM_SEG_DELAY;
+           send_command(DisplayOn, COM_SEG_DELAY);
+           if (spi_tx_done) // transition once transaction sent
               start_delay_next = 1'b1;
-           end
         end
+
         COM_SEG_DELAY: begin
            // delay 100ms
            n_delay = ComSegDelay;
-           if (delay_done) state_next = SET_256_MODE1;
+           if (delay_done) state_next = SET_FOSC_FREQ1;
         end
-        SET_256_MODE1: begin
-           cs_next = 1'b0;
-           if (spi_ready) begin
-              d_in_next = 8'hA0; // Send driver remap/color depth command
-              spi_start_next = 1'b1;
-           end
-           if (spi_tx_done) state_next = SET_256_MODE2;
-        end
-        SET_256_MODE2: begin
-           cs_next = 1'b0;
-           if (spi_ready) begin
-              d_in_next = 8'h20; // Set to 256 color format (bits 7 and 6 must be 0)
-              spi_start_next = 1'b1;
-           end
-           if (spi_tx_done) state_next = IDLE;
-           end
+
+        // Initiate command to set dclk mux and fosc
+        SET_FOSC_FREQ1: send_command(8'hB3, SET_FOSC_FREQ2);
+
+        // Set dclk mux to 4'h0 and fosc to 4'hF
+        SET_FOSC_FREQ2: send_command(8'hF0, SET_256_MODE1);
+
+        // Initiate command to set color mode
+        SET_256_MODE1: send_command(8'hA0, SET_256_MODE2);
+
+        // Set color mode to 8 bit, 256 colors
+        SET_256_MODE2: send_command(8'h20, IDLE);
+
         SEND_COLORS: begin
-           cs_next = 1'b0;
-           dc_next = 1'b1;
            count_next = count + spi_tx_done;
-           if (spi_ready) begin
-              d_in_next = count; // send an incrementing counter as data
-              spi_start_next = 1'b1;
-           end
-           if (spi_tx_done) state_next = test_pattern ? SEND_COLORS : IDLE;
+           if (test_pattern) send_data(count[7:0], SEND_COLORS);
+           else              send_data(count[7:0], IDLE);
         end
+
         TEST_IMAGE_COMMANDS: begin
-           cs_next = 1'b0;
-           dc_next = 1'b0;
            count_next = count + spi_tx_done;
-           if (spi_ready) begin
-              d_in_next = pre_frame_commands[count];
-              spi_start_next = 1'b1;
-           end
+           send_command(pre_frame_commands[count], TEST_IMAGE_COMMANDS);
            if (spi_tx_done && (count == 10-1)) begin
               state_next = TEST_IMAGE;
               count_next = '0;
            end
         end
+
         TEST_IMAGE: begin
-           cs_next = 1'b0;
-           dc_next = 1'b1;
            count_next = count + spi_tx_done;
-           if (spi_ready) begin
-              d_in_next = image[count]; // send an incrementing counter as data
-              spi_start_next = 1'b1;
-           end
+           send_data(image[count], TEST_IMAGE);
            if (spi_tx_done && (count == (96*64-1))) state_next = IDLE;
-        end
-        SEND_COMMAND: begin
-           dc_next = 0;
-        end
-        SEND_DATA: begin
-           dc_next = 1;
         end
         default: state_next = IDLE;
       endcase // case (state)
